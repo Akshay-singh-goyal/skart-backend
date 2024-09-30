@@ -2,16 +2,19 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../../models/User");
 
-//register
+// Environment variable for JWT secret
+const jwtSecret = process.env.JWT_SECRET || "CLIENT_SECRET_KEY";
+
+// Register
 const registerUser = async (req, res) => {
   const { userName, email, password } = req.body;
 
   try {
     const checkUser = await User.findOne({ email });
     if (checkUser)
-      return res.json({
+      return res.status(400).json({
         success: false,
-        message: "User Already exists with the same email! Please try again",
+        message: "User already exists with the same email! Please try again",
       });
 
     const hashPassword = await bcrypt.hash(password, 12);
@@ -22,37 +25,35 @@ const registerUser = async (req, res) => {
     });
 
     await newUser.save();
-    res.status(200).json({
+    res.status(201).json({
       success: true,
       message: "Registration successful",
+      user: { email: newUser.email, userName: newUser.userName },
     });
-  } catch (e) {
-    console.log(e);
+  } catch (error) {
+    console.error("Registration Error:", error);
     res.status(500).json({
       success: false,
-      message: "Some error occured",
+      message: "Some error occurred",
     });
   }
 };
 
-//login
+// Login
 const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
   try {
     const checkUser = await User.findOne({ email });
     if (!checkUser)
-      return res.json({
+      return res.status(400).json({
         success: false,
-        message: "User doesn't exists! Please register first",
+        message: "User doesn't exist! Please register first",
       });
 
-    const checkPasswordMatch = await bcrypt.compare(
-      password,
-      checkUser.password
-    );
+    const checkPasswordMatch = await bcrypt.compare(password, checkUser.password);
     if (!checkPasswordMatch)
-      return res.json({
+      return res.status(400).json({
         success: false,
         message: "Incorrect password! Please try again",
       });
@@ -64,11 +65,11 @@ const loginUser = async (req, res) => {
         email: checkUser.email,
         userName: checkUser.userName,
       },
-      "CLIENT_SECRET_KEY",
+      jwtSecret,
       { expiresIn: "60m" }
     );
 
-    res.cookie("token", token, { httpOnly: true, secure: false }).json({
+    res.cookie("token", token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' }).json({
       success: true,
       message: "Logged in successfully",
       user: {
@@ -78,17 +79,16 @@ const loginUser = async (req, res) => {
         userName: checkUser.userName,
       },
     });
-  } catch (e) {
-    console.log(e);
+  } catch (error) {
+    console.error("Login Error:", error);
     res.status(500).json({
       success: false,
-      message: "Some error occured",
+      message: "Some error occurred",
     });
   }
 };
 
-//logout
-
+// Logout
 const logoutUser = (req, res) => {
   res.clearCookie("token").json({
     success: true,
@@ -96,23 +96,24 @@ const logoutUser = (req, res) => {
   });
 };
 
-//auth middleware
+// Auth Middleware
 const authMiddleware = async (req, res, next) => {
   const token = req.cookies.token;
   if (!token)
     return res.status(401).json({
       success: false,
-      message: "Unauthorised user!",
+      message: "Unauthorized user!",
     });
 
   try {
-    const decoded = jwt.verify(token, "CLIENT_SECRET_KEY");
+    const decoded = jwt.verify(token, jwtSecret);
     req.user = decoded;
     next();
   } catch (error) {
+    console.error("Authorization Error:", error);
     res.status(401).json({
       success: false,
-      message: "Unauthorised user!",
+      message: "Unauthorized user!",
     });
   }
 };
