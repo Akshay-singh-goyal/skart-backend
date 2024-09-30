@@ -12,7 +12,7 @@ const { upload } = require("../../helpers/cloudinary");
 
 const router = express.Router();
 
-router.post("/upload-image", upload.single("skart_folder"), handleImageUpload);
+router.post("/upload-image", upload.single("upload_preset","skart_folder"), handleImageUpload);
 router.post("/add", addProduct);
 router.put("/edit/:id", editProduct);
 router.delete("/delete/:id", deleteProduct);
